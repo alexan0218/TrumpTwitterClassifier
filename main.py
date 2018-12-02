@@ -11,6 +11,10 @@ random.seed(42)
 np.random.seed(0)
 torch.manual_seed(2)
 
+BATCH_SIZE = 100
+WORDEMBEDDING_DIM = 256
+EPOCHS = 10
+
 def read_input():
 	data_in = "data.in"
 	data_out = "data.out"
@@ -55,12 +59,12 @@ if __name__ == '__main__':
 	forward_dict = build_indices(train_inputs)
 	train_inputs = encode(train_inputs, forward_dict)
 	test_inputs = encode(test_inputs, forward_dict)
-	m = model(vocab_size = len(forward_dict), hidden_dim = 256, out_dim = 2)
+	m = model(vocab_size = len(forward_dict), hidden_dim = WORDEMBEDDING_DIM, out_dim = 2)
 	optimizer = optim.SGD(m.parameters(), lr=1.0)
-	minibatch_size = 100
+	minibatch_size = BATCH_SIZE
 	num_minibatches = len(train_inputs) // minibatch_size
 
-	for epoch in (range(10)):
+	for epoch in (range(EPOCHS)):
 		# Training
 		print("Training epoch " + str(epoch))
 		# Put the model in training mode
@@ -104,7 +108,7 @@ if __name__ == '__main__':
 		accuracy = correct / predictions
 		print("Evaluation time: {} for epoch {}, Accuracy: {}".format(time.time() - start_eval, epoch, accuracy))
 
-	# Inferencing
+	# Testing
 	print("Testing")
 
 	data_in = "test.in"
@@ -113,16 +117,16 @@ if __name__ == '__main__':
 		data_inputs = [line.split() for line in data_in_file]
 	data_in_file.close()
 	test_inputs = encode(data_inputs, forward_dict)
-	m.eval()
 	start_eval = time.time()
 	predictions = []
+	# Constructing the output file
 	result_file = open("result.csv", "w")
 	result_file.write("ID,Label\n")
 	i = 0
 	for input_seq in test_inputs:
+		# Inferencing
 		_, predicted_output = m(input_seq)
-		if (predicted_output == 0):
-			predicted_output = -1
+		predicted_output = (-1 if predicted_output == 0 else predicted_output)
 		predictions.append(predicted_output)
 		result_file.write(str(i) + "," + str(predicted_output) +"\n")
 		i += 1
