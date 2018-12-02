@@ -1,27 +1,16 @@
-import os
-import random
 import numpy as np
-import math
 import torch
 from torch import nn
 from torch.nn import init
-from torch import optim
-
-# Consult the PyTorch documentation for information on the functions used below:
-# https://pytorch.org/docs/stable/torch.html
 
 class model(nn.Module):
-    # Hint: Think about what the various numbers mean. Which ones make sense and which ones don't?
-
-    # hidden_dim is actually feature dimension
+   
     def __init__(self, vocab_size, hidden_dim=128, out_dim=2):
         super(model, self).__init__()
         self.hidden_dim = hidden_dim
-        self.embeds = nn.Embedding(vocab_size, hidden_dim) # a words in vocab, d dimensional embeddings.
-        #self.encoder = nn.GRU(hidden_dim, 99, bidirectional=True) # num of input features, num of features in hidden layer, bidirectional GRU
+        self.embeds = nn.Embedding(vocab_size, hidden_dim)
         self.encoder = nn.GRU(hidden_dim, 128, bidirectional=True)
         self.loss = nn.CrossEntropyLoss()
-        #self.out = nn.Linear(198, out_dim) # size of each input sample, size of each output sample
         self.out = nn.Linear(256, out_dim)
         
     def compute_Loss(self, pred_vec, gold_output):

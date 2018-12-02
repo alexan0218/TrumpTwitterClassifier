@@ -1,24 +1,17 @@
 import numpy as np
 import torch
-import torch.nn as nn
-from torch.nn import init
 import torch.optim as optim
 import math
 import random
 import os
-from pathlib import Path 
-from broken_model import model
+from model import model
 import time
-from tqdm import tqdm
 
-random.seed(42) # DO NOT CHANGE
-np.random.seed(0) # DO NOT CHANGE
-torch.manual_seed(2) # DO NOT CHANGE
+random.seed(42)
+np.random.seed(0)
+torch.manual_seed(2)
 
 def read_input():
-	# path = Path("data")
-	# data_in = path / ("data.in")
-	# data_out = path / ("data.out")
 	data_in = "data.in"
 	data_out = "data.out"
 
@@ -32,87 +25,65 @@ def read_input():
 
 	all_data = list(zip(data_inputs, data_outputs))
 
-	# The below splits data into a train and set. This is not an error. 
-	# However, feel free to decrease the ratio if you are willing to compromise performance
-	# To make training faster/so you can iterate through debugging solutions faster
-
-	train_ratio = 0.9  # splits data set into 90% train, 10% test
+	train_ratio = 0.9
 	train_bound = int(train_ratio * len(all_data))
 	train_inputs, train_outputs = zip(*all_data)
-	return train_inputs, train_outputs
 
 	train_data = all_data[:train_bound] 
 	test_data = all_data[train_bound:] 
-	random.shuffle(train_data) # Shuffling data is a good practice
+	random.shuffle(train_data)
 	random.shuffle(test_data)
 	train_inputs, train_outputs = zip(*train_data) # unzips the list, i.e. [(a,b), (c,d)] -> [a,c], [b,d]
 	test_inputs, test_outputs = zip(*test_data)
-	# return train_inputs, train_outputs, test_inputs, test_outputs
-
+	return train_inputs, train_outputs, test_inputs, test_outputs
 
 def build_indices(train_set):
 	tokens = [token for line in train_set for token in line]
-
-	# From token to its index
 	forward_dict = {'UNK': 0}
-
-	# From index to token
-	backward_dict = {0: 'UNK'}
 	i = 1
 	for token in tokens:
 		if token not in forward_dict:
 			forward_dict[token] = i 
-			backward_dict[i] = token 
 			i += 1
-	return forward_dict, backward_dict
-
+	return forward_dict
 
 def encode(data, forward_dict):
 	return [list(map(lambda t: forward_dict.get(t,0), line)) for line in data]
 
-
-def make_output(output):
-	if output == ['0']:
-		return torch.tensor([0])
-	else:
-		return torch.tensor([1])
-
 if __name__ == '__main__':
-	# train_inputs, train_outputs, test_inputs, test_outputs = read_input()
-	train_inputs, train_outputs = read_input()
-	forward_dict, backward_dict = build_indices(train_inputs)
-	print(len(forward_dict.keys()))
+	train_inputs, train_outputs, test_inputs, test_outputs = read_input()
+	forward_dict = build_indices(train_inputs)
 	train_inputs = encode(train_inputs, forward_dict)
-	# test_inputs = encode(test_inputs, forward_dict)
+	test_inputs = encode(test_inputs, forward_dict)
 	m = model(vocab_size = len(forward_dict), hidden_dim = 256, out_dim = 2)
 	optimizer = optim.SGD(m.parameters(), lr=1.0)
 	minibatch_size = 100
-	num_minibatches = len(train_inputs) // minibatch_size 
+	num_minibatches = len(train_inputs) // minibatch_size
 
 	for epoch in (range(10)):
 		# Training
-		print("Training")
-		# Put the model in evaluation mode
+		print("Training epoch " + str(epoch))
+		# Put the model in training mode
 		m.train()
 		start_train = time.time()
 
-		for group in tqdm(range(num_minibatches)):
+		for group in range(num_minibatches):
 			predictions = None
-			gold_outputs = None
+			truth = None
 			loss = 0
 			optimizer.zero_grad()
 			for i in range(group * minibatch_size, (group + 1) * minibatch_size):
 				input_seq = train_inputs[i]
-				gold_output = make_output(train_outputs[i])
+				gold_output = (torch.tensor([0]) if train_outputs[i] == ['0'] else torch.tensor([1]))
 				prediction_vec, prediction = m(input_seq)
 
 				if predictions is None:
 					predictions = [prediction_vec]
-					gold_outputs = [gold_output] 
+					truth = [gold_output] 
 				else:
 					predictions.append(prediction_vec)
-					gold_outputs.append(gold_output)
-			loss = m.compute_Loss(torch.stack(predictions), torch.stack(gold_outputs).squeeze())
+					truth.append(gold_output)
+			loss = m.compute_Loss(torch.stack(predictions), torch.stack(truth).squeeze())
 			loss.backward()
 			optimizer.step()
 		print("Training time: {} for epoch {}".format(time.time() - start_train, epoch))
@@ -123,18 +94,17 @@ if __name__ == '__main__':
 		m.eval()
 		start_eval = time.time()
 
-		# predictions = 0 # number of predictions
-		# correct = 0 # number of outputs predicted correctly
-		# for input_seq, gold_output in zip(test_inputs, test_outputs):
-		# 	_, predicted_output = m(input_seq)
-		# 	gold_output = (0 if gold_output == ['0'] else 1)
-		# 	correct += int((gold_output == predicted_output))
-		# 	predictions += 1
-		# accuracy = correct / predictions
-		# assert 0 <= accuracy <= 1
-		# print("Evaluation time: {} for epoch {}, Accuracy: {}".format(time.time() - start_eval, epoch, accuracy))
+		predictions = 0
+		correct = 0
+		for input_seq, gold_output in zip(test_inputs, test_outputs):
+			_, predicted_output = m(input_seq)
+			gold_output = (0 if gold_output == ['0'] else 1)
+			correct += int((gold_output == predicted_output))
+			predictions += 1
+		accuracy = correct / predictions
+		print("Evaluation time: {} for epoch {}, Accuracy: {}".format(time.time() - start_eval, epoch, accuracy))
 
-	# Evaluation
+	# Inferencing
 	print("Testing")
 
 	data_in = "test.in"
@@ -143,23 +113,16 @@ if __name__ == '__main__':
 		data_inputs = [line.split() for line in data_in_file]
 	data_in_file.close()
 	test_inputs = encode(data_inputs, forward_dict)
-	# Put the model in evaluation mode
 	m.eval()
 	start_eval = time.time()
-
-	# predictions = 0 # number of predictions
-	# correct = 0 # number of outputs predicted correctly
-	# for input_seq, gold_output in zip(train_inputs, train_outputs):
 	predictions = []
 	result_file = open("result.csv", "w")
 	result_file.write("ID,Label\n")
 	i = 0
 	for input_seq in test_inputs:
 		_, predicted_output = m(input_seq)
-
 		if (predicted_output == 0):
 			predicted_output = -1
-
 		predictions.append(predicted_output)
 		result_file.write(str(i) + "," + str(predicted_output) +"\n")
 		i += 1
